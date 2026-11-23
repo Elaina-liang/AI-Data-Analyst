@@ -3,6 +3,13 @@ import pandas as pd
 
 from core.data_analyzer import analyze_by_major
 
+from core.data_quality import (
+    check_missing_values,
+    check_duplicate_rows,
+    check_outliers_iqr,
+    check_data_types
+)
+
 from core.chart_generator import (
     create_major_chart,
     create_course_chart
@@ -46,6 +53,42 @@ if uploaded_file is not None:
 
     with col2:
         st.metric("数据列数", len(df.columns))
+
+
+    st.subheader("🔍 数据质量报告")
+
+    # 1. 缺失值检测
+    st.write("### 缺失值检测")
+    missing_stats = check_missing_values(df)
+    st.dataframe(missing_stats)
+
+    # 2. 重复值检测
+    st.write("### 重复值检测")
+    duplicate_stats = check_duplicate_rows(df)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("重复行数量", duplicate_stats["重复行数量"])
+    with col2:
+        st.metric("重复行比例", f'{duplicate_stats["重复行比例(%)"]}%')
+
+    # 3. 异常值检测
+    st.write("### 异常值检测")
+    outlier_stats = check_outliers_iqr(df)
+
+    if outlier_stats:
+        outlier_table = pd.DataFrame(outlier_stats).T
+        st.dataframe(outlier_table)
+    else:
+        st.info("没有可检测的数值列")
+
+    # 4. 数据类型检查
+    st.write("### 数据类型检查")
+    type_stats = check_data_types(df)
+    st.dataframe(type_stats)
+
+
+
 
     # 数据统计
     st.subheader("数据统计")
