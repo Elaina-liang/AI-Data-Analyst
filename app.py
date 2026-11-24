@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import hashlib
+from core.ai_analyzer import ask_deepseek
 
 from core.data_analyzer import analyze_by_major
 from core.data_cleaner import (
@@ -297,6 +298,102 @@ if uploaded_file is not None:
             st.info("当前数据缺少“专业/姓名/课程”列，无法生成完整的成绩分组分析图表。")
     elif "成绩" in df.columns:
         st.info("“成绩”列当前不是可用于统计的数值数据，请先进行数据类型转换或清洗。")
+
+    # AI 智能分析
+    st.markdown("---")
+    st.subheader("🤖 AI 智能数据分析")
+
+    st.write("你可以用自然语言向 AI 提问，让它帮助你理解当前数据。")
+
+    ai_question = st.text_area(
+        "请输入你的分析问题",
+        placeholder="例如：哪个专业的平均成绩最高？",
+        key="ai_question"
+    )
+
+    if st.button("开始 AI 分析", use_container_width=True):
+        if not ai_question.strip():
+            st.warning("请先输入分析问题。")
+        else:
+            with st.spinner("AI 正在分析，请稍候..."):
+                try:
+                    # 生成当前数据的统计摘要
+                    numeric_columns = df.select_dtypes(
+                        include="number"
+                    ).columns.tolist()
+
+                    
+                    data_context = f"""
+                    数据行数：{len(df)}
+                    数据列数：{len(df.columns)}
+                    列名：{df.columns.tolist()}
+
+                    数据统计：
+                    {df.describe(include="all").to_string()}
+                    """
+
+                    #生成数据质量提示
+                    quality_notes = []
+
+                    # 1. 缺失值检查
+                    missing_counts = df.isna().sum()
+                    for column, count in missing_counts.items():
+                        if count > 0:
+                             quality_notes.append(
+                                f"列“{column}”存在 {count} 个缺失值。"
+                           )
+
+                    # 2. 完全重复行检查
+                    duplicate_count = int(df.duplicated().sum())
+
+                    if duplicate_count > 0:
+                        quality_notes.append(
+                            f"数据中存在 {duplicate_count} 条完全重复的记录。"
+                        )
+
+                    # 3. 成绩范围检查
+                    if "成绩" in df.columns:
+                        scores = pd.to_numeric(df["成绩"], errors="coerce")
+                        invalid_scores = int((scores > 100).sum())
+
+                    if invalid_scores > 0:
+                        quality_notes.append(
+                             f"成绩列有 {invalid_scores} 条记录超过100分。"
+                            "如果采用百分制，这些记录可能存在异常，"
+                            "需要核实原始数据。"
+                        )
+
+                    # 将质量信息加入数据摘要
+                    if quality_notes:
+                        data_context += "\n数据质量提示：\n"
+                        data_context += "\n".join(quality_notes)
+                    else:
+                        data_context += "\n数据质量提示：未发现上述几类问题。"
+
+
+                    # 增加数值列的分组分析信息
+                    if "专业" in df.columns and numeric_columns:
+                        for column in numeric_columns:
+                            data_context += (
+                                f"\n各专业的{column}平均值：\n"
+                            )
+                            data_context += (
+                                df.groupby("专业")[column]
+                                .mean()
+                                .to_string()
+                            )
+
+                    # 调用 DeepSeek
+                    result = ask_deepseek(
+                        ai_question,
+                        data_context
+                    )
+
+                    st.success("AI 分析完成！")
+                    st.markdown(result)
+
+                except Exception as e:
+                    st.error(f"AI 分析失败：{e}")
 
 else:
     st.info("请先上传一个 CSV 文件。")

@@ -7,3 +7,6 @@ __pycache__/
 
 # Streamlit 配置
 .streamlit/secrets.toml
+
+# 环境变量和 API 密钥
+.env
