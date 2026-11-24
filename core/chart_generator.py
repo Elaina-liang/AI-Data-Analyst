@@ -44,7 +44,7 @@ def create_major_chart(major_stats):
         fontproperties=font
     )
 
-    ax.set_ylim(0, 100)
+    ax.set_ylim(0, 300)
 
     # 显示成绩数值
     for i, score in enumerate(scores):
@@ -88,7 +88,7 @@ def create_course_chart(df):
     )
 
     # 设置纵坐标范围
-    ax.set_ylim(0, 100)
+    ax.set_ylim(0, 200)
 
     # 显示成绩数值
     for i, score in enumerate(course_avg.values):
