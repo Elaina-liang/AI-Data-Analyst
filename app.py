@@ -1,15 +1,26 @@
 import streamlit as st
 import pandas as pd
+import hashlib
 
 from core.data_analyzer import analyze_by_major
-
+from core.data_cleaner import (
+    drop_missing_values,
+    fill_missing_with_mean,
+    fill_missing_with_median,
+    drop_duplicate_rows,
+    mark_outliers_iqr,
+    handle_outliers_iqr,
+    convert_data_types,
+    compare_dataframes,
+    dataframe_to_csv_bytes,
+    reset_to_original,
+)
 from core.data_quality import (
     check_missing_values,
     check_duplicate_rows,
     check_outliers_iqr,
     check_data_types
 )
-
 from core.chart_generator import (
     create_major_chart,
     create_course_chart
@@ -34,17 +45,33 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
-    # 读取文件
-    df = pd.read_csv(uploaded_file)
+    # 读取文件并保留原始数据
+    file_bytes = uploaded_file.getvalue()
 
-    st.success("文件上传成功！")
+    raw_df = pd.read_csv(uploaded_file)
+
+    file_signature = (
+        uploaded_file.name,
+        hashlib.sha256(file_bytes).hexdigest()
+    )
+
+    if st.session_state.get("uploaded_file_signature") != file_signature:
+        st.session_state["uploaded_file_signature"] = file_signature
+        st.session_state["original_df"] = raw_df.copy()
+        st.session_state["cleaned_df"] = raw_df.copy()
+        st.session_state["cleaning_history"] = []
+
+    original_df = st.session_state["original_df"]
+    df = st.session_state["cleaned_df"]
+
+    st.success("文件上传成功！原始数据已保留，可在下方进行清洗并导出结果。")
 
     # 数据预览
-    st.subheader("数据预览")
+    st.subheader("数据预览（当前数据）")
     st.dataframe(df.head())
 
     # 数据基本信息
-    st.subheader("数据基本信息")
+    st.subheader("数据基本信息（当前数据）")
 
     col1, col2 = st.columns(2)
 
@@ -54,8 +81,141 @@ if uploaded_file is not None:
     with col2:
         st.metric("数据列数", len(df.columns))
 
+    st.subheader("🧹 数据清洗")
+    st.caption("以下操作均在当前清洗结果上继续执行；原始数据始终保留，可随时恢复或导出。")
 
-    st.subheader("🔍 数据质量报告")
+    clean_col1, clean_col2, clean_col3 = st.columns(3)
+
+    with clean_col1:
+        if st.button("删除缺失值行", use_container_width=True):
+            st.session_state["cleaned_df"] = drop_missing_values(df)
+            st.session_state["cleaning_history"].append("删除缺失值行")
+            st.rerun()
+
+        if st.button("均值填充", use_container_width=True):
+            st.session_state["cleaned_df"] = fill_missing_with_mean(df)
+            st.session_state["cleaning_history"].append("均值填充（数值列）")
+            st.rerun()
+
+        if st.button("删除重复数据", use_container_width=True):
+            st.session_state["cleaned_df"] = drop_duplicate_rows(df)
+            st.session_state["cleaning_history"].append("删除重复数据")
+            st.rerun()
+
+    with clean_col2:
+        if st.button("中位数填充", use_container_width=True):
+            st.session_state["cleaned_df"] = fill_missing_with_median(df)
+            st.session_state["cleaning_history"].append("中位数填充（数值列）")
+            st.rerun()
+
+        outlier_method_label = st.selectbox(
+            "异常值处理方式",
+            options=["标记异常值", "截断到上下界", "删除异常值行", "用中位数替换异常值", "用均值替换异常值"],
+            index=0,
+        )
+        outlier_method_map = {
+            "标记异常值": "mark",
+            "截断到上下界": "cap",
+            "删除异常值行": "remove",
+            "用中位数替换异常值": "median",
+            "用均值替换异常值": "mean",
+        }
+        if st.button("异常值标记与处理", use_container_width=True):
+            selected_method = outlier_method_map[outlier_method_label]
+            if selected_method == "mark":
+                st.session_state["cleaned_df"] = mark_outliers_iqr(df)
+            else:
+                st.session_state["cleaned_df"] = handle_outliers_iqr(df, method=selected_method)
+            st.session_state["cleaning_history"].append(outlier_method_label)
+            st.rerun()
+
+    with clean_col3:
+        convertible_columns = df.columns.tolist()
+        if convertible_columns:
+            target_column = st.selectbox("选择要转换的列", options=convertible_columns, key="convert_column")
+            target_type_label = st.selectbox(
+                "目标数据类型",
+                options=["自动推断", "整数 (int)", "浮点数 (float)", "字符串 (str)", "布尔值 (bool)", "日期时间 (datetime)", "分类 (category)"],
+                index=0,
+                key="convert_type",
+            )
+            if st.button("数据类型转换", use_container_width=True):
+                if target_type_label == "自动推断":
+                    converted = convert_data_types(df[[target_column]], infer_objects=True)
+                    updated_df = df.copy()
+                    updated_df[target_column] = converted[target_column]
+                    st.session_state["cleaned_df"] = updated_df
+                    st.session_state["cleaning_history"].append(f"数据类型转换：{target_column} -> 自动推断")
+                else:
+                    type_map = {
+                        "整数 (int)": "int",
+                        "浮点数 (float)": "float",
+                        "字符串 (str)": "str",
+                        "布尔值 (bool)": "bool",
+                        "日期时间 (datetime)": "datetime",
+                        "分类 (category)": "category",
+                    }
+                    st.session_state["cleaned_df"] = convert_data_types(
+                        df,
+                        column_types={target_column: type_map[target_type_label]}
+                    )
+                    st.session_state["cleaning_history"].append(
+                        f"数据类型转换：{target_column} -> {target_type_label}"
+                    )
+                st.rerun()
+        else:
+            st.info("当前数据没有可转换的列")
+
+        if st.button("恢复为原始数据", use_container_width=True):
+            st.session_state["cleaned_df"] = reset_to_original(original_df)
+            st.session_state["cleaning_history"] = []
+            st.rerun()
+
+    if st.session_state.get("cleaning_history"):
+        st.write("**已执行的清洗操作：** " + " → ".join(st.session_state["cleaning_history"]))
+    else:
+        st.info("尚未执行清洗操作，当前显示的是原始数据副本。")
+
+    st.subheader("📊 清洗前后数据对比")
+    comparison = compare_dataframes(original_df, df)
+
+    st.write("#### 总体对比")
+    st.dataframe(comparison["summary"], use_container_width=True)
+
+    compare_detail_col1, compare_detail_col2 = st.columns(2)
+    with compare_detail_col1:
+        st.write("#### 缺失值变化")
+        st.dataframe(comparison["missing_values"], use_container_width=True)
+    with compare_detail_col2:
+        st.write("#### 数据类型变化")
+        st.dataframe(comparison["dtypes"], use_container_width=True)
+
+    with st.expander("查看原始数据预览（保留）"):
+        st.dataframe(original_df, use_container_width=True)
+
+    with st.expander("查看当前清洗结果预览"):
+        st.dataframe(df, use_container_width=True)
+
+    st.subheader("💾 原始数据保留与清洗结果导出")
+    export_col1, export_col2 = st.columns(2)
+    with export_col1:
+        st.download_button(
+            label="下载原始数据 CSV",
+            data=dataframe_to_csv_bytes(original_df),
+            file_name="original_data.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with export_col2:
+        st.download_button(
+            label="下载清洗结果 CSV",
+            data=dataframe_to_csv_bytes(df),
+            file_name="cleaned_data.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    st.subheader("🔍 数据质量报告（当前数据）")
 
     # 1. 缺失值检测
     st.write("### 缺失值检测")
@@ -87,15 +247,12 @@ if uploaded_file is not None:
     type_stats = check_data_types(df)
     st.dataframe(type_stats)
 
-
-
-
     # 数据统计
-    st.subheader("数据统计")
-    st.write(df.describe())
+    st.subheader("数据统计（当前数据）")
+    st.write(df.describe(include="all"))
 
     # 成绩分析
-    if "成绩" in df.columns:
+    if "成绩" in df.columns and pd.api.types.is_numeric_dtype(df["成绩"]) and not df["成绩"].dropna().empty:
 
         st.subheader("📊 成绩分析")
 
@@ -122,21 +279,24 @@ if uploaded_file is not None:
         # 调用独立的数据分析模块
         st.subheader("📚 各专业成绩分析")
 
-        major_stats = analyze_by_major(df)
+        if "专业" in df.columns and "姓名" in df.columns and "课程" in df.columns:
+            major_stats = analyze_by_major(df)
+            st.dataframe(major_stats)
 
-        st.dataframe(major_stats)
+            # 专业成绩可视化
+            st.subheader("📊 各专业平均成绩对比")
+            fig = create_major_chart(major_stats)
+            st.pyplot(fig)
 
-        # 专业成绩可视化
-        st.subheader("📊 各专业平均成绩对比")
+            # 各课程平均成绩图表
+            if "课程" in df.columns:
+                st.subheader("📚 各课程平均成绩对比")
+                course_fig = create_course_chart(df)
+                st.pyplot(course_fig)
+        else:
+            st.info("当前数据缺少“专业/姓名/课程”列，无法生成完整的成绩分组分析图表。")
+    elif "成绩" in df.columns:
+        st.info("“成绩”列当前不是可用于统计的数值数据，请先进行数据类型转换或清洗。")
 
-        fig = create_major_chart(major_stats)
-
-        st.pyplot(fig)
-        # 各课程平均成绩图表
-        st.subheader("📚 各课程平均成绩对比")
-
-        course_fig = create_course_chart(df)
-
-        st.pyplot(course_fig)
 else:
     st.info("请先上传一个 CSV 文件。")
