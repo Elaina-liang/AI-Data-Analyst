@@ -25,6 +25,7 @@ pillow==13.0.0
 protobuf==7.36.2
 pyarrow==26.0.1
 pydeck==0.9.3
+pymysql>=1.1.0
 pyparsing==3.3.3
 python-dateutil==4.0.0
 python-dotenv>=1.0.0
@@ -32,6 +33,7 @@ python-multipart==0.0.34
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.9.1
+sqlalchemy>=2.0.0
 starlette==1.10.0
 streamlit==1.67.0
 typing_extensions==4.16.0

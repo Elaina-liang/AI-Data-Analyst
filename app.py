@@ -2,6 +2,13 @@ import streamlit as st
 import pandas as pd
 import hashlib
 from core.ai_analyzer import ask_deepseek
+from core.database import (
+    create_mysql_engine,
+    test_connection,
+    list_tables,
+    load_table,
+    run_query,
+)
 
 from core.data_analyzer import analyze_by_major
 from core.data_cleaner import (
@@ -38,23 +45,110 @@ st.title("📊 AI 智能数据分析助手")
 st.write("欢迎使用 AI Data Analyst！")
 st.markdown("---")
 
-# 上传文件
-uploaded_file = st.file_uploader(
-    "请上传 CSV 文件",
-    type=["csv"]
+# 选择数据来源：上传 CSV 或连接 MySQL
+data_source = st.radio(
+    "请选择数据来源",
+    options=["上传 CSV 文件", "MySQL 数据库"],
+    horizontal=True,
 )
 
-if uploaded_file is not None:
+raw_df = None
+file_signature = None
+source_label = ""
 
-    # 读取文件并保留原始数据
-    file_bytes = uploaded_file.getvalue()
-
-    raw_df = pd.read_csv(uploaded_file)
-
-    file_signature = (
-        uploaded_file.name,
-        hashlib.sha256(file_bytes).hexdigest()
+if data_source == "上传 CSV 文件":
+    uploaded_file = st.file_uploader(
+        "请上传 CSV 文件",
+        type=["csv"]
     )
+
+    if uploaded_file is not None:
+        # 读取文件并保留原始数据
+        file_bytes = uploaded_file.getvalue()
+
+        raw_df = pd.read_csv(uploaded_file)
+
+        file_signature = (
+            uploaded_file.name,
+            hashlib.sha256(file_bytes).hexdigest()
+        )
+        source_label = f"CSV 文件：{uploaded_file.name}"
+
+else:
+    st.subheader("🗄️ MySQL 数据库连接")
+    st.caption("密码只用于本次连接，不会保存到代码或仓库中。查询只允许 SELECT 只读语句。")
+
+    mysql_col1, mysql_col2 = st.columns(2)
+    with mysql_col1:
+        mysql_host = st.text_input("主机地址", value="localhost", key="mysql_host")
+        mysql_user = st.text_input("用户名", value="root", key="mysql_user")
+        mysql_database = st.text_input("数据库名", key="mysql_database")
+    with mysql_col2:
+        mysql_port = st.number_input("端口", value=3306, min_value=1, max_value=65535, key="mysql_port")
+        mysql_password = st.text_input("密码", type="password", key="mysql_password")
+
+    def _make_engine():
+        return create_mysql_engine(
+            host=mysql_host,
+            port=int(mysql_port),
+            user=mysql_user,
+            password=mysql_password,
+            database=mysql_database,
+        )
+
+    if st.button("测试连接", use_container_width=True):
+        engine = _make_engine()
+        try:
+            test_connection(engine)
+            tables = list_tables(engine)
+            st.success(f"连接成功！当前数据库共有 {len(tables)} 张表：{', '.join(tables) if tables else '（暂无表）'}")
+        except Exception as e:
+            st.error(f"连接失败：{e}")
+        finally:
+            engine.dispose()
+
+    st.write("**方式一：按表名加载整张表**")
+    mysql_table = st.text_input("表名", key="mysql_table", placeholder="例如：students")
+    if st.button("加载这张表", use_container_width=True):
+        engine = _make_engine()
+        try:
+            st.session_state["mysql_raw_df"] = load_table(engine, mysql_table.strip())
+            st.session_state["mysql_source_label"] = f"MySQL 表：{mysql_database}.{mysql_table.strip()}"
+            st.success("表格加载成功！")
+        except Exception as e:
+            st.error(f"加载失败：{e}")
+        finally:
+            engine.dispose()
+
+    st.write("**方式二：写 SQL 查询（只读）**")
+    mysql_query = st.text_area(
+        "SQL 查询语句",
+        value="SELECT * FROM 表名 LIMIT 100",
+        key="mysql_query",
+        help="只允许 SELECT / WITH 开头的单条查询，结果最多返回 1000 行。",
+    )
+    if st.button("执行 SQL 查询", use_container_width=True):
+        engine = _make_engine()
+        try:
+            st.session_state["mysql_raw_df"] = run_query(engine, mysql_query)
+            st.session_state["mysql_source_label"] = f"MySQL 查询：{mysql_query.strip()}"
+            st.success("查询成功！")
+        except Exception as e:
+            st.error(f"查询失败：{e}")
+        finally:
+            engine.dispose()
+
+    if "mysql_raw_df" in st.session_state:
+        raw_df = st.session_state["mysql_raw_df"]
+        file_signature = (
+            "mysql",
+            hashlib.sha256(
+                pd.util.hash_pandas_object(raw_df, index=True).values.tobytes()
+            ).hexdigest(),
+        )
+        source_label = st.session_state.get("mysql_source_label", "MySQL 数据库")
+
+if raw_df is not None:
 
     if st.session_state.get("uploaded_file_signature") != file_signature:
         st.session_state["uploaded_file_signature"] = file_signature
@@ -65,7 +159,7 @@ if uploaded_file is not None:
     original_df = st.session_state["original_df"]
     df = st.session_state["cleaned_df"]
 
-    st.success("文件上传成功！原始数据已保留，可在下方进行清洗并导出结果。")
+    st.success(f"数据加载成功！来源：{source_label}。原始数据已保留，可在下方进行清洗并导出结果。")
 
     # 数据预览
     st.subheader("数据预览（当前数据）")
@@ -397,4 +491,4 @@ if uploaded_file is not None:
                     st.error(f"AI 分析失败：{e}")
 
 else:
-    st.info("请先上传一个 CSV 文件。")
+    st.info("请先上传一个 CSV 文件，或连接 MySQL 数据库加载数据。")

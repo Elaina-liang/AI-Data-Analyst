@@ -57,6 +57,13 @@ AI-Data-Analyst 是一个面向通用表格数据的分析工具，旨在帮助�
 - 提问时自动附带数据统计摘要和数据质量提示（缺失值、重复记录、成绩异常等），不发送完整原始数据。
 - API Key 通过本地 `.env` 文件中的 `DEEPSEEK_API_KEY` 配置，不写进代码。
 
+### 7. MySQL 数据库连接与 SQL 查询
+
+- 数据来源新增 MySQL：填写主机、端口、用户名、密码和数据库名即可连接（密码只用于本次连接，不保存）。
+- 支持测试连接并列出当前数据库的全部表，可按表名加载整张表。
+- 支持手写 SQL 查询：只允许 SELECT / WITH 开头的单条只读查询，增删改等语句会被拦截，结果最多返回 1000 行。
+- 从 MySQL 加载的数据与 CSV 一样，可继续使用数据清洗、质量检测、统计分析和 AI 智能分析。
+
 ## 三、技术栈
 
 | 技术         | 用途        |
@@ -65,6 +72,8 @@ AI-Data-Analyst 是一个面向通用表格数据的分析工具，旨在帮助�
 | Pandas     | 数据处理与统计分析 |
 | Streamlit  | Web 交互界面  |
 | Matplotlib | 数据可视化     |
+| SQLAlchemy | 数据库连接与查询 |
+| PyMySQL    | MySQL 驱动    |
 | Git        | 版本管理      |
 | GitHub     | 项目托管      |
 
@@ -76,10 +85,12 @@ AI-Data-Analyst/
 ├── requirements.txt
 ├── .gitignore
 ├── core/
+│   ├── ai_analyzer.py
 │   ├── data_analyzer.py
 │   ├── chart_generator.py
 │   ├── data_quality.py
-│   └── data_cleaner.py
+│   ├── data_cleaner.py
+│   └── database.py
 └── data/
     ├── sample.csv
     └── test_quality.csv
@@ -135,7 +146,7 @@ python -m streamlit run app.py
 - [ ] 增加更多通用数据分析方法。
 - [ ] 增加更多数据可视化图表。
 - [x] 接入大语言模型，实现自然语言数据分析。（已完成：接入 DeepSeek）
-- [ ] 增加 MySQL 数据库连接与 SQL 查询。
+- [x] 增加 MySQL 数据库连接与 SQL 查询。（已完成）
 - [ ] 使用 FastAPI 构建后端接口。
 - [ ] 增加 Pytest 自动化测试。
 - [ ] 完善项目部署和文档。
