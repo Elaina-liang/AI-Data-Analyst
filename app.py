@@ -352,6 +352,7 @@ if uploaded_file is not None:
                         )
 
                     # 3. 成绩范围检查
+                    invalid_scores = 0
                     if "成绩" in df.columns:
                         scores = pd.to_numeric(df["成绩"], errors="coerce")
                         invalid_scores = int((scores > 100).sum())
