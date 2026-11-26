@@ -88,7 +88,7 @@ uvicorn api:app --reload
 
 - 测试套件位于 `tests/` 目录，共 51 个用例，覆盖数据清洗、数据质量检测、按专业统计、数据库只读查询校验和 FastAPI 全部接口。
 - 测试使用 SQLite 内存库代替 MySQL、monkeypatch 代替 DeepSeek 调用，不需要真实服务器和 API Key，可离线重复运行。
-- 在项目根目录运行：`python -m pytest`，全部通过时会显示 `51 passed`。
+- 在项目根目录运行：`python -m pytest`，全部通过时会显示 `51 passed`。根目录的 `test_api.py`、`test_database.py` 同样是标准 pytest 写法，单独运行：`python -m pytest test_api.py test_database.py`（共 20 个用例），或继续用 `python test_api.py` 的老跑法。
 
 ## 三、技术栈
 
