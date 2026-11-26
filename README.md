@@ -64,6 +64,26 @@ AI-Data-Analyst 是一个面向通用表格数据的分析工具，旨在帮助�
 - 支持手写 SQL 查询：只允许 SELECT / WITH 开头的单条只读查询，增删改等语句会被拦截，结果最多返回 1000 行。
 - 从 MySQL 加载的数据与 CSV 一样，可继续使用数据清洗、质量检测、统计分析和 AI 智能分析。
 
+### 8. FastAPI 后端接口
+
+新增 `api.py`，把 core 里的已有能力包装成 HTTP 接口（与 Streamlit 页面相互独立，只返回 JSON）：
+
+- `GET /health`：健康检查；`GET /docs`：自动生成的交互式接口文档，可在线测试。
+- `POST /data/upload`：上传 CSV，返回行列数和数据预览。
+- `POST /data/quality`：上传 CSV，返回缺失值、重复行、IQR 异常值和数据类型报告。
+- `POST /data/clean`：上传 CSV 并按指定操作清洗（去重、删缺失、均值/中位数填充、异常值标记/截断）。
+- `POST /data/analyze-by-major`：按专业统计成绩。
+- `POST /ai/ask`：上传 CSV 并用自然语言向 DeepSeek 提问（需配置 API Key）。
+- `POST /database/query`：连接 MySQL 执行只读 SQL 查询（复用 database 模块的校验）。
+
+启动方式：
+
+```bash
+uvicorn api:app --reload
+```
+
+启动后打开 `http://127.0.0.1:8000/docs` 即可查看和测试全部接口。
+
 ## 三、技术栈
 
 | 技术         | 用途        |
@@ -73,6 +93,7 @@ AI-Data-Analyst 是一个面向通用表格数据的分析工具，旨在帮助�
 | Streamlit  | Web 交互界面  |
 | Matplotlib | 数据可视化     |
 | SQLAlchemy | 数据库连接与查询 |
+| FastAPI    | 后端 API 接口 |
 | PyMySQL    | MySQL 驱动    |
 | Git        | 版本管理      |
 | GitHub     | 项目托管      |
@@ -82,6 +103,7 @@ AI-Data-Analyst 是一个面向通用表格数据的分析工具，旨在帮助�
 ```text
 AI-Data-Analyst/
 ├── app.py
+├── api.py
 ├── requirements.txt
 ├── .gitignore
 ├── core/
@@ -147,7 +169,7 @@ python -m streamlit run app.py
 - [ ] 增加更多数据可视化图表。
 - [x] 接入大语言模型，实现自然语言数据分析。（已完成：接入 DeepSeek）
 - [x] 增加 MySQL 数据库连接与 SQL 查询。（已完成）
-- [ ] 使用 FastAPI 构建后端接口。
+- [x] 使用 FastAPI 构建后端接口。（已完成）
 - [ ] 增加 Pytest 自动化测试。
 - [ ] 完善项目部署和文档。
 
