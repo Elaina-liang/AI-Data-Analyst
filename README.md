@@ -84,6 +84,12 @@ uvicorn api:app --reload
 
 启动后打开 `http://127.0.0.1:8000/docs` 即可查看和测试全部接口。
 
+### 9. Pytest 自动化测试
+
+- 测试套件位于 `tests/` 目录，共 51 个用例，覆盖数据清洗、数据质量检测、按专业统计、数据库只读查询校验和 FastAPI 全部接口。
+- 测试使用 SQLite 内存库代替 MySQL、monkeypatch 代替 DeepSeek 调用，不需要真实服务器和 API Key，可离线重复运行。
+- 在项目根目录运行：`python -m pytest`，全部通过时会显示 `51 passed`。
+
 ## 三、技术栈
 
 | 技术         | 用途        |
@@ -95,6 +101,7 @@ uvicorn api:app --reload
 | SQLAlchemy | 数据库连接与查询 |
 | FastAPI    | 后端 API 接口 |
 | PyMySQL    | MySQL 驱动    |
+| Pytest     | 自动化测试    |
 | Git        | 版本管理      |
 | GitHub     | 项目托管      |
 
@@ -113,6 +120,13 @@ AI-Data-Analyst/
 │   ├── data_quality.py
 │   ├── data_cleaner.py
 │   └── database.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_api.py
+│   ├── test_data_cleaner.py
+│   ├── test_data_quality.py
+│   └── test_database.py
+├── pytest.ini
 └── data/
     ├── sample.csv
     └── test_quality.csv
@@ -160,6 +174,12 @@ python -m streamlit run app.py
 
 启动后，根据终端提示在浏览器中打开 Streamlit 页面。
 
+### 7. 运行自动化测试（可选）
+
+```bash
+python -m pytest
+```
+
 ## 六、后续开发计划
 
 以下功能尚未完成，属于项目后续规划：
@@ -170,7 +190,7 @@ python -m streamlit run app.py
 - [x] 接入大语言模型，实现自然语言数据分析。（已完成：接入 DeepSeek）
 - [x] 增加 MySQL 数据库连接与 SQL 查询。（已完成）
 - [x] 使用 FastAPI 构建后端接口。（已完成）
-- [ ] 增加 Pytest 自动化测试。
+- [x] 增加 Pytest 自动化测试。（已完成：tests/ 目录 51 个用例，运行 `python -m pytest`）
 - [ ] 完善项目部署和文档。
 
 ## 七、项目地址
